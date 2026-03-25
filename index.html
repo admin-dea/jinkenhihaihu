@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人件費配賦管理システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI',sans-serif;font-size:14px;color:#1a1a1a;background:#f5f4f0;min-height:100vh}
+.screen{display:none}.screen.active{display:block}
+
+/* ログイン */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:#f5f4f0}
+.login-card{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:36px 32px;width:100%;max-width:400px;box-shadow:0 2px 16px rgba(0,0,0,0.07)}
+.login-logo{font-size:18px;font-weight:600;margin-bottom:4px;color:#1a1a1a}
+.login-sub{font-size:12px;color:#888;margin-bottom:24px}
+.login-tabs{display:flex;gap:2px;background:#f0efe8;border-radius:8px;padding:3px;margin-bottom:20px}
+.login-tab{flex:1;padding:8px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:13px;font-family:inherit;color:#666}
+.login-tab.active{background:#fff;color:#1a1a1a;border:1px solid #e0dfd8;font-weight:500}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.form-group label{font-size:11px;color:#666;font-weight:500}
+.form-group select,.form-group input[type="password"]{padding:10px 11px;border:1px solid #d0cfc8;border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:13px;transition:border-color 0.15s}
+.form-group select:focus,.form-group input:focus{outline:none;border-color:#888}
+.btn-login{width:100%;padding:11px;border-radius:8px;border:none;background:#1a1a1a;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px;transition:opacity 0.15s}
+.btn-login:hover{opacity:0.85}
+.login-err{font-size:12px;color:#c0392b;margin-top:8px;min-height:18px}
+.login-hint{font-size:11px;color:#aaa;margin-top:10px}
+
+/* アプリ共通 */
+.app-wrap{display:flex;flex-direction:column;min-height:100vh}
+.app-header{padding:12px 24px;background:#fff;border-bottom:1px solid #e0dfd8;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.app-logo{font-size:15px;font-weight:600;color:#1a1a1a}
+.tab-bar{display:flex;gap:2px;background:#f0efe8;border-radius:8px;padding:3px}
+.tab{padding:6px 14px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:12px;font-family:inherit;color:#666}
+.tab.active{background:#fff;color:#1a1a1a;border:1px solid #e0dfd8;font-weight:500}
+.user-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:12px;background:#f0efe8;border:1px solid #e0dfd8}
+.user-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.btn{padding:6px 13px;border-radius:8px;border:1px solid #d0cfc8;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:#1a1a1a;display:inline-flex;align-items:center;gap:5px;transition:background 0.12s}
+.btn:hover{background:#f0efe8}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn-primary:hover{opacity:0.85;background:#1a1a1a}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-danger{background:#c0392b;color:#fff;border-color:#c0392b}
+.content{padding:20px 24px;flex:1}
+.panel{display:none}.panel.active{display:block}
+
+/* メトリクス */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.mc{background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:12px 14px}
+.mc-label{font-size:11px;color:#888;margin-bottom:4px}
+.mc-value{font-size:20px;font-weight:600;color:#1a1a1a}
+
+/* テーブル */
+.table-wrap{border:1px solid #e0dfd8;border-radius:10px;overflow:auto;margin-bottom:18px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:9px 12px;text-align:left;font-weight:500;font-size:11px;color:#888;border-bottom:1px solid #e0dfd8;white-space:nowrap;background:#f8f7f4}
+td{padding:9px 12px;border-bottom:1px solid #f0efe8;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#faf9f6}
+
+/* バッジ */
+.etype{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
+.et-full{background:#EEEDFE;color:#3C3489}
+.et-contract{background:#E1F5EE;color:#085041}
+.et-dispatch{background:#FAEEDA;color:#633806}
+.et-exec{background:#FAECE7;color:#712B13}
+.et-keiyaku{background:#E6F1FB;color:#0C447C}
+.alloc-tag{padding:2px 7px;border-radius:9px;font-size:10px;white-space:nowrap}
+.tag-a{background:#dbeeff;color:#0c4a7c}
+.tag-b{background:#dcf0d0;color:#274e0a}
+.tag-c{background:#fef0d8;color:#5c3200}
+.tag-d{background:#fce8f0;color:#6b1f3c}
+.tag-e{background:#d8f4eb;color:#084e41}
+.alloc-cell{display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+.edit-btn,.del-btn{padding:3px 8px;border-radius:5px;border:1px solid #e0dfd8;background:#fff;cursor:pointer;font-size:10px;font-family:inherit;color:#666}
+.edit-btn:hover{background:#dbeeff;color:#0c4a7c;border-color:#9fc5e8}
+.del-btn:hover{background:#fde8e8;color:#c0392b;border-color:#e8a0a0}
+
+/* 部門カード */
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px}
+.dept-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.dept-bar-wrap{height:4px;background:#f0efe8;border-radius:4px;margin:8px 0}
+.dept-bar{height:4px;border-radius:4px}
+
+/* チャート */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+@media(max-width:600px){.chart-row{grid-template-columns:1fr}}
+.chart-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.chart-title{font-size:11px;font-weight:500;color:#888;margin-bottom:10px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:10px;color:#666}
+.ld{display:flex;align-items:center;gap:3px}
+.ldot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* パスワード設定 */
+.pw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px}
+.pw-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.pw-card-title{font-weight:500;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.pw-input-row{display:flex;gap:6px;align-items:center}
+.pw-input-row input{flex:1;padding:7px 9px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+
+.section-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.section-title{font-size:15px;font-weight:600;color:#1a1a1a}
+.period-sel{padding:6px 9px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+.info-box{background:#f8f7f4;border:1px solid #e0dfd8;border-radius:8px;padding:11px 14px;font-size:12px;color:#666;margin-bottom:14px}
+.done-banner{background:#e8f7ed;border:1px solid #a8d8b8;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e6e3e;margin-bottom:14px}
+
+/* モーダル */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-start;justify-content:center;padding-top:60px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border:1px solid #d0cfc8;border-radius:12px;padding:22px;width:92%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-weight:600;font-size:15px}
+.close-btn{background:none;border:none;cursor:pointer;font-size:18px;color:#999;padding:2px 6px;line-height:1}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:11px}
+.fg label{font-size:11px;color:#666;font-weight:500}
+.fg input,.fg select{padding:8px 10px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:13px}
+.fg input:focus,.fg select:focus{outline:none;border-color:#888}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.alloc-row-item{display:flex;gap:5px;margin-bottom:7px;align-items:center}
+.alloc-row-item select{flex:1;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+.alloc-row-item input{width:62px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px;text-align:center}
+.rm-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:16px;padding:0 3px;line-height:1}
+.rm-btn:hover{color:#c0392b}
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div class="screen active" id="screen-login">
+<div class="login-wrap">
+<div class="login-card">
+  <div class="login-logo">人件費配賦管理システム</div>
+  <div class="login-sub">部門または管理者としてログインしてください</div>
+  <div class="login-tabs">
+    <button class="login-tab active" onclick="switchLoginTab('dept',this)">部門長ログイン</button>
+    <button class="login-tab" onclick="switchLoginTab('admin',this)">管理者ログイン</button>
+  </div>
+  <div id="login-dept-form">
+    <div class="form-group"><label>部門を選択</label><select id="login-dept-sel"></select></div>
+    <div class="form-group"><label>パスワード</label><input type="password" id="login-dept-pw" placeholder="部門パスワードを入力"></div>
+    <div class="login-err" id="dept-login-err"></div>
+    <button class="btn-login" onclick="deptLogin()">ログイン</button>
+  </div>
+  <div id="login-admin-form" style="display:none">
+    <div class="form-group"><label>管理者パスワード</label><input type="password" id="login-admin-pw" placeholder="管理者パスワードを入力"></div>
+    <div class="login-err" id="admin-login-err"></div>
+    <button class="btn-login" onclick="adminLogin()">ログイン</button>
+    <div class="login-hint">初期パスワード: admin123（ログイン後に変更してください）</div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 部門長画面 -->
+<div class="screen" id="screen-dept">
+<div class="app-wrap">
+<div class="app-header">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span class="app-logo">人件費配賦管理</span>
+    <div class="tab-bar">
+      <button class="tab active" onclick="showDeptPanel('list',this)">配賦一覧・入力</button>
+      <button class="tab" onclick="showDeptPanel('summary',this)">部門サマリ</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select class="period-sel" id="dept-monthSel" onchange="renderDeptScreen()">
+      <option value="0">全月</option>
+      <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+      <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+      <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <span class="user-badge"><span class="user-dot" id="dept-dot"></span><span id="dept-badge-name"></span></span>
+    <button class="btn btn-sm" onclick="logout()">ログアウト</button>
+  </div>
+</div>
+<div class="content">
+  <div class="panel active" id="dpanel-list">
+    <div id="dept-done-banner" style="display:none" class="done-banner">✓ 保存しました</div>
+    <div id="dept-confirm-bar" style="margin-bottom:14px"></div>
+    <div class="metrics-row" id="dept-metrics"></div>
+    <div class="section-bar">
+      <span class="section-title" id="dept-section-title"></span>
+      <button class="btn btn-primary btn-sm" onclick="openEmpModal()">＋ 社員追加</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>社員番号</th><th>氏名</th><th>雇用区分</th><th>基本給</th><th>配賦先・比率</th><th>配賦金額</th><th>月</th><th>操作</th></tr></thead>
+        <tbody id="dept-emp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel" id="dpanel-summary">
+    <div class="metrics-row" id="dept-sum-metrics"></div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">雇用区分別 配賦金額</div>
+        <div class="chart-legend" id="dept-etype-legend"></div>
+        <div style="position:relative;height:190px"><canvas id="deptEtypeChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">配賦先別 構成比</div>
+        <div class="chart-legend" id="dept-alloc-legend"></div>
+        <div style="position:relative;height:190px"><canvas id="deptAllocChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 管理者画面 -->
+<div class="screen" id="screen-admin">
+<div class="app-wrap">
+<div class="app-header">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span class="app-logo">人件費配賦管理 <span style="font-size:11px;font-weight:400;color:#888">管理者</span></span>
+    <div class="tab-bar">
+      <button class="tab active" onclick="showAdminPanel('overview',this)">全社概要</button>
+      <button class="tab" onclick="showAdminPanel('all',this)">全社員一覧</button>
+      <button class="tab" onclick="showAdminPanel('settings',this)">設定</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select class="period-sel" id="admin-monthSel" onchange="renderAdminScreen()">
+      <option value="0">全月</option>
+      <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+      <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+      <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <span class="user-badge"><span class="user-dot" style="background:#D85A30"></span>管理者</span>
+    <button class="btn btn-sm" onclick="exportAllCSV()">CSV出力</button>
+    <button class="btn btn-sm" onclick="logout()">ログアウト</button>
+  </div>
+</div>
+<div class="content">
+  <div class="panel active" id="apanel-overview">
+    <div id="check-status-bar" style="margin-bottom:14px"></div>
+    <div class="metrics-row" id="admin-metrics"></div>
+    <div class="dept-grid" id="admin-dept-grid"></div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+          <span class="chart-title" style="margin-bottom:0">プロジェクト別 配賦金額（万円）</span>
+          <button class="btn btn-sm" onclick="exportProjectCSV()" style="font-size:11px">CSV出力</button>
+        </div>
+        <div class="chart-legend" id="admin-bar-legend"></div>
+        <div style="position:relative;height:260px"><canvas id="adminBarChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">雇用区分別 構成比</div>
+        <div class="chart-legend" id="admin-etype-legend"></div>
+        <div style="position:relative;height:210px"><canvas id="adminEtypeChart"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="project-breakdown-table" style="margin-top:4px"></div>
+  </div>
+  <div class="panel" id="apanel-all">
+    <div class="section-bar">
+      <span class="section-title">全社員 配賦一覧</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select class="period-sel" id="admin-dept-filter" onchange="renderAdminAll()">
+          <option value="">全部門</option>
+        </select>
+        <select class="period-sel" id="admin-etype-filter" onchange="renderAdminAll()">
+          <option value="">全区分</option>
+          <option>正社員</option><option>業務委託</option><option>派遣社員</option><option>役員</option><option>契約社員</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openAdminAddModal()">＋ 社員追加</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>社員番号</th><th>氏名</th><th>雇用区分</th><th>所属部門</th><th>基本給</th><th>配賦先・比率</th><th>配賦金額</th><th>月</th><th>操作</th></tr></thead>
+        <tbody id="admin-all-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel" id="apanel-settings">
+    <div class="section-bar"><span class="section-title">翌月データ作成</span></div>
+    <div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="font-size:13px;color:#444;margin-bottom:12px">指定した月のデータを翌月にコピーします。給与・配賦比率はそのまま引き継がれます。変更があった社員だけ修正してください。</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="period-sel" id="copy-src-month">
+          <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+          <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+          <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+        <span style="font-size:13px;color:#888">のデータを翌月にコピー</span>
+        <button class="btn btn-primary btn-sm" onclick="copyToNextMonth()">コピー実行</button>
+        <span id="copy-status" style="font-size:12px;color:#1e6e3e"></span>
+      </div>
+    </div>
+    <div class="section-bar"><span class="section-title">部門パスワード設定</span></div>
+    <div class="pw-grid" id="pw-grid"></div>
+    <div class="section-bar" style="margin-top:8px"><span class="section-title">管理者パスワード変更</span></div>
+    <div style="max-width:360px;background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px">
+      <div class="fg"><label>現在のパスワード</label><input type="password" id="admin-pw-old" placeholder="現在のパスワード"></div>
+      <div class="fg"><label>新しいパスワード</label><input type="password" id="admin-pw-new" placeholder="新しいパスワード"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">変更する</button>
+        <span id="admin-pw-status" style="font-size:12px;color:#1e6e3e"></span>
+      </div>
+    </div>
+    <div class="section-bar"><span class="section-title">データ管理</span></div>
+    <div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-sm" onclick="exportAllCSV()">全データ CSV出力</button>
+      <button class="btn btn-sm" onclick="importCSVClick()">CSV インポート</button>
+      <input type="file" id="importFileInput" accept=".csv" style="display:none" onchange="handleImportFile(event)">
+      <button class="btn btn-sm btn-danger" onclick="clearAllData()">データを全削除</button>
+    </div>
+    <div class="info-box">
+      データはブラウザの localStorage に保存されます。ブラウザのデータを消去するとリセットされます。定期的に CSV 出力でバックアップすることをお勧めします。
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 社員追加・編集モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+<div class="modal" onclick="event.stopPropagation()">
+  <div class="modal-header">
+    <span class="modal-title" id="modal-title">社員を追加</span>
+    <button class="close-btn" onclick="closeModal()">×</button>
+  </div>
+  <div class="fg2">
+    <div class="fg"><label>社員番号</label><input id="f_id" placeholder="E001"></div>
+    <div class="fg"><label>氏名</label><input id="f_name" placeholder="山田 太郎"></div>
+    <div class="fg"><label>雇用区分</label>
+      <select id="f_etype"><option>正社員</option><option>業務委託</option><option>派遣社員</option><option>役員</option><option>契約社員</option></select>
+    </div>
+    <div class="fg"><label>月</label>
+      <select id="f_month">
+        <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+        <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+        <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+    </div>
+  </div>
+  <div class="fg" id="f_dept_group" style="display:none"><label>所属部門</label>
+    <select id="f_dept"></select>
+  </div>
+  <div class="fg"><label>基本給（円）</label><input id="f_salary" type="number" placeholder="400000"></div>
+  <div style="font-size:11px;color:#888;margin:10px 0 7px;font-weight:500">配賦先・比率（合計100%）</div>
+  <div id="allocRows"></div>
+  <button class="btn btn-sm" onclick="addAllocRow()" style="margin-bottom:16px">＋ 配賦先を追加</button>
+  <div style="display:flex;justify-content:flex-end;gap:8px">
+    <button class="btn btn-sm" onclick="closeModal()">キャンセル</button>
+    <button class="btn btn-primary btn-sm" onclick="saveEmp()">保存</button>
+  </div>
+</div>
+</div>
+
+<script>
+const DEPTS = ['役員','ピクトレ','開発','新規開発','営業','会計・経理','人事・総務','シンガポール'];
+const ALLOC_TARGETS = [
+  {cat:"全体配賦",name:"CEO"},
+  {cat:"全体配賦",name:"資金・クリプトオペレーション"},
+  {cat:"全体配賦",name:"会計・税務"},
+  {cat:"全体配賦",name:"IR・監査"},
+  {cat:"全体配賦",name:"人事労務"},
+  {cat:"全体配賦",name:"総務"},
+  {cat:"全体配賦",name:"Corporate IT"},
+  {cat:"全体配賦",name:"法務"},
+  {cat:"全体配賦",name:"資金調達 IPO準備"},
+  {cat:"全体配賦",name:"マーケ・PR・CS"},
+  {cat:"全体配賦",name:"マケプレ運用"},
+  {cat:"全体配賦",name:"プラットフォーム開発・運用"},
+  {cat:"旧BtoC事業",name:"旧BtoC事業"},
+  {cat:"ピクトレ",name:"ピクトレ"},
+  {cat:"Lucky Farmer",name:"Lucky Farmer"},
+  {cat:"Lucky Farmer",name:"障がい者雇用"},
+  {cat:"その他新規開発",name:"Eco Catcher Battle"},
+  {cat:"その他新規開発",name:"山田さん新規開発"},
+  {cat:"その他新規開発",name:"Asics"},
+];
+const ALLOC_NAMES = ALLOC_TARGETS.map(x=>x.name);
+const ATAG_MAP = {};
+const _cats = [...new Set(ALLOC_TARGETS.map(x=>x.cat))];
+const _tagClasses = ['tag-a','tag-b','tag-c','tag-d','tag-e'];
+_cats.forEach((c,i)=>ATAG_MAP[c]=_tagClasses[i%5]);
+function allocTag(name){
+  const item = ALLOC_TARGETS.find(x=>x.name===name);
+  return item ? (ATAG_MAP[item.cat]||'tag-a') : 'tag-a';
+}
+const DEPT_COLORS = ['#993C1D','#1D9E75','#378ADD','#534AB7','#BA7517','#D4537E','#0F6E56','#888780'];
+const ETYPE_COLORS = {'正社員':'#534AB7','業務委託':'#0F6E56','派遣社員':'#854F0B','役員':'#993C1D','契約社員':'#185FA5'};
+const ETYPE_CLASS = {'正社員':'et-full','業務委託':'et-contract','派遣社員':'et-dispatch','役員':'et-exec','契約社員':'et-keiyaku'};
+const LS_EMP = 'jinkenhi_employees';
+const LS_PW  = 'jinkenhi_passwords';
+
+let currentUser = null;
+let editIdx = null;
+let chartInsts = {};
+
+const DEFAULT_PW = {
+  '役員':'yakuin123','ピクトレ':'pictore123','開発':'kaihatu123','新規開発':'new123',
+  '営業':'eigyo123','会計・経理':'kaikei123','人事・総務':'hr123','シンガポール':'sg123',
+  '__admin__':'admin123'
+};
+const DEFAULT_EMP = [
+  {id:"E001",name:"吉田さん",etype:"役員",dept:"役員",salary:3503000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E002",name:"山田さん",etype:"役員",dept:"役員",salary:2305200,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E003",name:"栗原 英誠",etype:"正社員",dept:"ピクトレ",salary:1651000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E004",name:"市橋 美咲",etype:"正社員",dept:"人事・総務",salary:0,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E005",name:"両角 麻紀",etype:"正社員",dept:"ピクトレ",salary:552050,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E006",name:"黒屋 礼良ラダレラ",etype:"正社員",dept:"会計・経理",salary:527790,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E007",name:"吉﨑 絢美",etype:"正社員",dept:"人事・総務",salary:0,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E008",name:"佐藤 あゆみ",etype:"正社員",dept:"会計・経理",salary:659925,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E009",name:"並河 大地",etype:"正社員",dept:"開発",salary:1651000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E010",name:"並河 慶子",etype:"正社員",dept:"会計・経理",salary:439425,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E011",name:"水沼 勇一",etype:"正社員",dept:"ピクトレ",salary:536050,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E012",name:"益谷 祥子",etype:"正社員",dept:"ピクトレ",salary:441050,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E013",name:"怒賀 良平",etype:"正社員",dept:"会計・経理",salary:1651000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E014",name:"添田 里日",etype:"正社員",dept:"会計・経理",salary:604800,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E015",name:"遠藤 眞由",etype:"正社員",dept:"ピクトレ",salary:526050,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E016",name:"永井 真成",etype:"正社員",dept:"開発",salary:662550,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E017",name:"広井 遥",etype:"正社員",dept:"人事・総務",salary:444915,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E018",name:"黒澤 まさ美",etype:"正社員",dept:"営業",salary:531615,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E019",name:"檜垣 翔太",etype:"正社員",dept:"営業",salary:1651000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E020",name:"Mayさん",etype:"正社員",dept:"シンガポール",salary:952678,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E021",name:"坂田 憲彦",etype:"正社員",dept:"役員",salary:300000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E022",name:"大山亨",etype:"正社員",dept:"役員",salary:200000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E023",name:"千葉 麻美",etype:"契約社員",dept:"営業",salary:280000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E024",name:"渡辺 あかね",etype:"正社員",dept:"営業",salary:450000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E025",name:"前田 薫",etype:"派遣社員",dept:"営業",salary:432000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E026",name:"藤原明",etype:"業務委託",dept:"新規開発",salary:300000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E027",name:"林　隼也",etype:"業務委託",dept:"ピクトレ",salary:320000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E028",name:"宋　沂娟",etype:"業務委託",dept:"新規開発",salary:630000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E029",name:"佐藤　剛",etype:"業務委託",dept:"開発",salary:1000000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E030",name:"山口洋平",etype:"業務委託",dept:"ピクトレ",salary:540000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E031",name:"小林 知倫",etype:"業務委託",dept:"開発",salary:1150000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E032",name:"堀川 博崇",etype:"業務委託",dept:"開発",salary:250000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E033",name:"林田　与志樹",etype:"業務委託",dept:"ピクトレ",salary:800000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E034",name:"川島",etype:"業務委託",dept:"開発",salary:375000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E035",name:"寺田　元子",etype:"業務委託",dept:"人事・総務",salary:886000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E036",name:"吉川慶",etype:"業務委託",dept:"開発",salary:896000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E037",name:"坂根　晋",etype:"業務委託",dept:"ピクトレ",salary:437500,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E038",name:"高辻 寛人",etype:"業務委託",dept:"ピクトレ",salary:437500,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E039",name:"上杉 華子",etype:"業務委託",dept:"ピクトレ",salary:437500,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E040",name:"坂巻 裕太",etype:"業務委託",dept:"ピクトレ",salary:437500,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E041",name:"森川 浩一",etype:"業務委託",dept:"会計・経理",salary:1008000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E042",name:"煤孫 和美",etype:"業務委託",dept:"開発",salary:730000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E043",name:"速水 信二",etype:"業務委託",dept:"開発",salary:750000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E044",name:"木下 ももこ",etype:"業務委託",dept:"人事・総務",salary:500000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E045",name:"内田賢作",etype:"業務委託",dept:"開発",salary:800000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E046",name:"八野祐太",etype:"業務委託",dept:"開発",salary:850000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E047",name:"坂井 武将",etype:"業務委託",dept:"ピクトレ",salary:1250000,month:3,allocs:[{t:"未設定",r:100}]},
+  {id:"E048",name:"松岡勇佑",etype:"業務委託",dept:"人事・総務",salary:2000000,month:3,allocs:[{t:"未設定",r:100}]},
+];
+
+function loadData(){
+  try{return JSON.parse(localStorage.getItem(LS_EMP))||DEFAULT_EMP;}catch{return DEFAULT_EMP;}
+}
+function saveData(){localStorage.setItem(LS_EMP,JSON.stringify(employees));}
+function loadPw(){
+  try{return Object.assign({},DEFAULT_PW,JSON.parse(localStorage.getItem(LS_PW))||{});}catch{return {...DEFAULT_PW};}
+}
+function savePwStore(){localStorage.setItem(LS_PW,JSON.stringify(passwords));}
+
+let employees = loadData();
+let passwords  = loadPw();
+
+const fmt  = n => n.toLocaleString('ja-JP')+'円';
+const fmtK = n => Math.round(n/10000)+'万円';
+const allocAmt   = (e,a) => Math.round(e.salary*a.r/100);
+const totalAlloc = e => e.allocs.reduce((s,a)=>s+allocAmt(e,a),0);
+
+/* ---- ログイン ---- */
+function switchLoginTab(type,btn){
+  document.querySelectorAll('.login-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('login-dept-form').style.display = type==='dept'?'block':'none';
+  document.getElementById('login-admin-form').style.display = type==='admin'?'block':'none';
+}
+function deptLogin(){
+  const dept=document.getElementById('login-dept-sel').value;
+  const pw=document.getElementById('login-dept-pw').value;
+  const err=document.getElementById('dept-login-err');
+  if(passwords[dept]&&pw===passwords[dept]){
+    err.textContent=''; currentUser={type:'dept',dept};
+    showScreen('screen-dept'); renderDeptScreen();
+  } else {err.textContent='パスワードが正しくありません'; document.getElementById('login-dept-pw').value='';}
+}
+function adminLogin(){
+  const pw=document.getElementById('login-admin-pw').value;
+  const err=document.getElementById('admin-login-err');
+  if(pw===passwords['__admin__']){
+    err.textContent=''; currentUser={type:'admin'};
+    showScreen('screen-admin'); renderAdminScreen();
+  } else {err.textContent='パスワードが正しくありません'; document.getElementById('login-admin-pw').value='';}
+}
+function logout(){
+  currentUser=null;
+  ['login-dept-pw','login-admin-pw'].forEach(id=>document.getElementById(id).value='');
+  ['dept-login-err','admin-login-err'].forEach(id=>document.getElementById(id).textContent='');
+  showScreen('screen-login');
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---- 部門長 ---- */
+function showDeptPanel(id,btn){
+  document.querySelectorAll('#screen-dept .panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#screen-dept .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('dpanel-'+id).classList.add('active'); btn.classList.add('active');
+  renderDeptScreen();
+}
+function getDeptData(){
+  const mo=parseInt(document.getElementById('dept-monthSel').value);
+  return employees.filter(e=>e.dept===currentUser.dept&&(mo===0||e.month===mo));
+}
+function renderDeptScreen(){
+  if(!currentUser||currentUser.type!=='dept') return;
+  const dept=currentUser.dept; const di=DEPTS.indexOf(dept);
+  document.getElementById('dept-dot').style.background=DEPT_COLORS[di%DEPT_COLORS.length];
+  document.getElementById('dept-badge-name').textContent=dept;
+  document.getElementById('dept-section-title').textContent=dept+' 配賦一覧';
+  renderDeptConfirmBar();
+  const data=getDeptData();
+  const totSal=data.reduce((s,e)=>s+e.salary,0);
+  const totAlloc=data.reduce((s,e)=>s+totalAlloc(e),0);
+  const etC={};data.forEach(e=>etC[e.etype]=(etC[e.etype]||0)+1);
+  const etB=Object.entries(etC).map(([t,c])=>`<span class="etype ${ETYPE_CLASS[t]}">${t} ${c}名</span>`).join(' ');
+  document.getElementById('dept-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">社員数</div><div class="mc-value">${data.length}名</div></div>`+
+    `<div class="mc"><div class="mc-label">雇用区分</div><div class="mc-value" style="font-size:13px;display:flex;gap:4px;flex-wrap:wrap;padding-top:4px">${etB}</div></div>`+
+    `<div class="mc"><div class="mc-label">基本給合計</div><div class="mc-value">${fmtK(totSal)}</div></div>`+
+    `<div class="mc"><div class="mc-label">配賦金額合計</div><div class="mc-value">${fmtK(totAlloc)}</div></div>`;
+  const tb=document.getElementById('dept-emp-tbody');
+  if(!data.length){
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:#aaa;padding:24px">データがありません。＋ 社員追加から入力してください。</td></tr>';
+  } else {
+    tb.innerHTML=data.map(e=>{
+      const gi=employees.indexOf(e);
+      const tags=e.allocs.map(a=>`<span class="alloc-tag ${allocTag(a.t)}">${a.t} ${a.r}%</span>`).join('');
+      return `<tr>
+        <td>${e.id}</td><td style="font-weight:500">${e.name}</td>
+        <td><span class="etype ${ETYPE_CLASS[e.etype]}">${e.etype}</span></td>
+        <td>${fmt(e.salary)}</td>
+        <td><div class="alloc-cell">${tags}</div></td>
+        <td style="font-weight:500">${fmt(totalAlloc(e))}</td>
+        <td>${e.month}月</td>
+        <td><div style="display:flex;gap:4px">
+          <button class="edit-btn" onclick="openEmpModal(${gi})">編集</button>
+          <button class="del-btn" onclick="delEmp(${gi})">削除</button>
+        </div></td></tr>`;
+    }).join('');
+  }
+  renderDeptSummary(data);
+}
+function renderDeptSummary(data){
+  const etMap={},aMap={};
+  data.forEach(e=>{etMap[e.etype]=(etMap[e.etype]||0)+totalAlloc(e);e.allocs.forEach(a=>{aMap[a.t]=(aMap[a.t]||0)+allocAmt(e,a);});});
+  const eL=Object.keys(etMap),eV=eL.map(t=>etMap[t]),eC=eL.map(t=>ETYPE_COLORS[t]);
+  document.getElementById('dept-etype-legend').innerHTML=eL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${eC[i]}"></span>${l} ${fmtK(eV[i])}</span>`).join('');
+  if(chartInsts.deptEtype) chartInsts.deptEtype.destroy();
+  chartInsts.deptEtype=new Chart(document.getElementById('deptEtypeChart'),{type:'doughnut',data:{labels:eL,datasets:[{data:eV,backgroundColor:eC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const aL=Object.keys(aMap),aV=aL.map(t=>aMap[t]),aC=aL.map((_,i)=>DEPT_COLORS[i%DEPT_COLORS.length]);
+  document.getElementById('dept-alloc-legend').innerHTML=aL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${aC[i]}"></span>${l}</span>`).join('');
+  if(chartInsts.deptAlloc) chartInsts.deptAlloc.destroy();
+  chartInsts.deptAlloc=new Chart(document.getElementById('deptAllocChart'),{type:'doughnut',data:{labels:aL,datasets:[{data:aV,backgroundColor:aC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  const tS=data.reduce((s,e)=>s+e.salary,0),tA=data.reduce((s,e)=>s+totalAlloc(e),0);
+  document.getElementById('dept-sum-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">社員数</div><div class="mc-value">${data.length}名</div></div>`+
+    `<div class="mc"><div class="mc-label">基本給合計</div><div class="mc-value">${fmtK(tS)}</div></div>`+
+    `<div class="mc"><div class="mc-label">配賦合計</div><div class="mc-value">${fmtK(tA)}</div></div>`;
+}
+
+/* ---- 管理者 ---- */
+function showAdminPanel(id,btn){
+  document.querySelectorAll('#screen-admin .panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#screen-admin .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('apanel-'+id).classList.add('active'); btn.classList.add('active');
+  renderAdminScreen();
+}
+function getAdminData(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  return employees.filter(e=>mo===0||e.month===mo);
+}
+function renderAdminScreen(){
+  if(!currentUser||currentUser.type!=='admin') return;
+  renderAdminOverview(); renderAdminAll(); renderPwSettings(); renderAdminDeptFilter();
+}
+function renderAdminOverview(){
+  renderCheckStatus();
+  const data=getAdminData();
+  const tS=data.reduce((s,e)=>s+e.salary,0),tA=data.reduce((s,e)=>s+totalAlloc(e),0);
+  const etC={正社員:0,業務委託:0,派遣社員:0,役員:0,契約社員:0};data.forEach(e=>etC[e.etype]++);
+  document.getElementById('admin-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">総社員数</div><div class="mc-value">${data.length}名</div></div>`+
+    Object.entries(etC).filter(([,v])=>v>0).map(([t,c])=>`<div class="mc"><div class="mc-label"><span class="etype ${ETYPE_CLASS[t]}">${t}</span></div><div class="mc-value">${c}名</div></div>`).join('')+
+    `<div class="mc"><div class="mc-label">基本給合計</div><div class="mc-value">${fmtK(tS)}</div></div>`+
+    `<div class="mc"><div class="mc-label">配賦合計</div><div class="mc-value">${fmtK(tA)}</div></div>`;
+  const dM={};
+  data.forEach(e=>{if(!dM[e.dept])dM[e.dept]={alloc:0,sal:0,count:0,byType:{}};dM[e.dept].sal+=e.salary;dM[e.dept].alloc+=totalAlloc(e);dM[e.dept].count++;dM[e.dept].byType[e.etype]=(dM[e.dept].byType[e.etype]||0)+1;});
+  const maxA=Math.max(...Object.values(dM).map(d=>d.alloc),1);
+  document.getElementById('admin-dept-grid').innerHTML=Object.entries(dM).map(([dept,d],i)=>{
+    const tt=Object.entries(d.byType).map(([t,c])=>`<span class="etype ${ETYPE_CLASS[t]}" style="font-size:10px">${t} ${c}名</span>`).join('');
+    return `<div class="dept-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-weight:600;font-size:13px">${dept}</span><span style="font-size:11px;color:#888">${d.count}名</span></div><div style="font-size:18px;font-weight:600;margin-bottom:2px">${fmtK(d.alloc)}</div><div class="dept-bar-wrap"><div class="dept-bar" style="width:${Math.round(d.alloc/maxA*100)}%;background:${DEPT_COLORS[i%5]}"></div></div><div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:5px">${tt}</div></div>`;
+  }).join('');
+
+  // 配賦先プロジェクト別集計
+  const pM={};
+  data.forEach(e=>e.allocs.forEach(a=>{
+    if(!pM[a.t]) pM[a.t]={alloc:0};
+    pM[a.t].alloc += allocAmt(e,a);
+  }));
+  // ALLOC_TARGETSの順序でソート、未設定は末尾
+  const pSorted = ALLOC_TARGETS.map(x=>x.name).filter(n=>pM[n]).concat(
+    Object.keys(pM).filter(n=>!ALLOC_TARGETS.find(x=>x.name===n))
+  );
+  const pLabels=pSorted, pVals=pSorted.map(n=>Math.round(pM[n].alloc/10000));
+  const pColors=pSorted.map(n=>{ const item=ALLOC_TARGETS.find(x=>x.name===n); return item?ATAG_MAP[item.cat]&&_tagClasses.indexOf(ATAG_MAP[item.cat])>=0?DEPT_COLORS[_tagClasses.indexOf(ATAG_MAP[item.cat])%DEPT_COLORS.length]:DEPT_COLORS[0]:DEPT_COLORS[0]; });
+  const pColorsFull=['#378ADD','#1D9E75','#BA7517','#D4537E','#0F6E56','#534AB7','#993C1D','#185FA5'];
+  const pColorsMap={};
+  const _uniqueCats=[...new Set(ALLOC_TARGETS.map(x=>x.cat))];
+  _uniqueCats.forEach((c,i)=>pColorsMap[c]=pColorsFull[i%pColorsFull.length]);
+  const pFinalColors=pSorted.map(n=>{ const item=ALLOC_TARGETS.find(x=>x.name===n); return item?pColorsMap[item.cat]:'#888780'; });
+
+  document.getElementById('admin-bar-legend').innerHTML=pLabels.slice(0,8).map((l,i)=>`<span class="ld"><span class="ldot" style="background:${pFinalColors[i]}"></span>${l}</span>`).join('');
+  if(chartInsts.adminBar) chartInsts.adminBar.destroy();
+  chartInsts.adminBar=new Chart(document.getElementById('adminBarChart'),{
+    type:'bar',
+    data:{labels:pLabels,datasets:[{data:pVals,backgroundColor:pFinalColors,borderRadius:3,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'万',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:45,autoSkip:false}}}}
+  });
+  const eM={};data.forEach(e=>eM[e.etype]=(eM[e.etype]||0)+totalAlloc(e));
+  const eL=Object.keys(eM),eV=eL.map(t=>eM[t]),eC=eL.map(t=>ETYPE_COLORS[t]);
+  document.getElementById('admin-etype-legend').innerHTML=eL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${eC[i]}"></span>${l} ${fmtK(eV[i])}</span>`).join('');
+  if(chartInsts.adminEtype) chartInsts.adminEtype.destroy();
+  chartInsts.adminEtype=new Chart(document.getElementById('adminEtypeChart'),{type:'doughnut',data:{labels:eL,datasets:[{data:eV,backgroundColor:eC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  renderProjectTable();
+}
+function renderAdminDeptFilter(){
+  const sel=document.getElementById('admin-dept-filter');const cur=sel.value;
+  sel.innerHTML='<option value="">全部門</option>'+DEPTS.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');
+}
+function renderAdminAll(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const dp=document.getElementById('admin-dept-filter').value;
+  const et=document.getElementById('admin-etype-filter').value;
+  const data=employees.filter(e=>(mo===0||e.month===mo)&&(!dp||e.dept===dp)&&(!et||e.etype===et));
+  const tb=document.getElementById('admin-all-tbody');
+  if(!data.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;color:#aaa;padding:24px">データがありません</td></tr>';return;}
+  tb.innerHTML=data.map(e=>{
+    const gi=employees.indexOf(e);
+    const tags=e.allocs.map(a=>`<span class="alloc-tag ${allocTag(a.t)}">${a.t} ${a.r}%</span>`).join('');
+    return `<tr><td>${e.id}</td><td style="font-weight:500">${e.name}</td><td><span class="etype ${ETYPE_CLASS[e.etype]}">${e.etype}</span></td><td>${e.dept}</td><td>${fmt(e.salary)}</td><td><div class="alloc-cell">${tags}</div></td><td style="font-weight:500">${fmt(totalAlloc(e))}</td><td>${e.month}月</td><td><div style="display:flex;gap:4px"><button class="edit-btn" onclick="openAdminEditModal(${gi})">編集</button><button class="del-btn" onclick="delEmpAdmin(${gi})">削除</button></div></td></tr>`;
+  }).join('');
+}
+function openAdminAddModal(){
+  editIdx=null;
+  document.getElementById('allocRows').innerHTML='';
+  document.getElementById('modal-title').textContent='社員を追加';
+  document.getElementById('f_id').value='';
+  document.getElementById('f_name').value='';
+  document.getElementById('f_etype').value='正社員';
+  document.getElementById('f_salary').value='';
+  const dg=document.getElementById('f_dept_group');
+  dg.style.display='block';
+  const ds=document.getElementById('f_dept');
+  ds.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join('');
+  addAllocRow();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function openAdminEditModal(gi){
+  editIdx=gi;
+  const e=employees[gi];
+  document.getElementById('allocRows').innerHTML='';
+  document.getElementById('modal-title').textContent='社員情報を編集';
+  document.getElementById('f_id').value=e.id;
+  document.getElementById('f_name').value=e.name;
+  document.getElementById('f_etype').value=e.etype;
+  document.getElementById('f_salary').value=e.salary;
+  document.getElementById('f_month').value=e.month;
+  const dg=document.getElementById('f_dept_group');
+  dg.style.display='block';
+  const ds=document.getElementById('f_dept');
+  ds.innerHTML=DEPTS.map(d=>`<option${d===e.dept?' selected':''}>${d}</option>`).join('');
+  e.allocs.forEach(a=>addAllocRow(a.t,a.r));
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function delEmpAdmin(gi){
+  if(!confirm('削除してもよろしいですか？')) return;
+  employees.splice(gi,1); saveData(); renderAdminScreen();
+}
+function renderPwSettings(){
+  document.getElementById('pw-grid').innerHTML=DEPTS.map((dept,i)=>`
+    <div class="pw-card">
+      <div class="pw-card-title"><span class="ldot" style="background:${DEPT_COLORS[i%5]};border-radius:50%;width:9px;height:9px"></span>${dept}</div>
+      <div class="pw-input-row">
+        <input type="password" id="pw-${dept}" value="${passwords[dept]||''}" placeholder="パスワード">
+        <button class="btn btn-sm" onclick="saveDeptPw('${dept}')">保存</button>
+      </div>
+      <div style="font-size:10px;color:#1e6e3e;margin-top:5px;min-height:14px" id="pw-status-${dept}"></div>
+    </div>`).join('');
+}
+function saveDeptPw(dept){
+  const val=document.getElementById('pw-'+dept).value;
+  if(!val) return;
+  passwords[dept]=val; savePwStore();
+  const st=document.getElementById('pw-status-'+dept);
+  st.textContent='✓ 保存しました'; setTimeout(()=>st.textContent='',2000);
+}
+function changeAdminPw(){
+  const oldPw=document.getElementById('admin-pw-old').value;
+  const newPw=document.getElementById('admin-pw-new').value;
+  const st=document.getElementById('admin-pw-status');
+  if(oldPw!==passwords['__admin__']){st.style.color='#c0392b';st.textContent='現在のパスワードが違います';return;}
+  if(!newPw){st.style.color='#c0392b';st.textContent='新しいパスワードを入力してください';return;}
+  passwords['__admin__']=newPw; savePwStore();
+  document.getElementById('admin-pw-old').value=''; document.getElementById('admin-pw-new').value='';
+  st.style.color='#1e6e3e'; st.textContent='✓ 変更しました'; setTimeout(()=>st.textContent='',3000);
+}
+
+/* ---- 社員 CRUD ---- */
+function openEmpModal(gi){
+  editIdx=gi!==undefined?gi:null;
+  document.getElementById('allocRows').innerHTML='';
+  document.getElementById('modal-title').textContent=editIdx!==null?'社員配賦を編集':'社員を追加';
+  document.getElementById('f_dept_group').style.display='none';
+  if(editIdx!==null){
+    const e=employees[editIdx];
+    document.getElementById('f_id').value=e.id;
+    document.getElementById('f_name').value=e.name;
+    document.getElementById('f_etype').value=e.etype;
+    document.getElementById('f_salary').value=e.salary;
+    document.getElementById('f_month').value=e.month;
+    e.allocs.forEach(a=>addAllocRow(a.t,a.r));
+  } else {
+    document.getElementById('f_id').value='';
+    document.getElementById('f_name').value='';
+    document.getElementById('f_etype').value='正社員';
+    document.getElementById('f_salary').value='';
+    addAllocRow();
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+function buildAllocSelect(selected=''){
+  const groups={};
+  ALLOC_TARGETS.forEach(x=>{if(!groups[x.cat])groups[x.cat]=[];groups[x.cat].push(x.name);});
+  return Object.entries(groups).map(([cat,names])=>
+    `<optgroup label="${cat}">${names.map(n=>`<option${n===selected?' selected':''}>${n}</option>`).join('')}</optgroup>`
+  ).join('');
+}
+function addAllocRow(target='',ratio=''){
+  const row=document.createElement('div'); row.className='alloc-row-item';
+  row.innerHTML=`<select style="flex:1;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px">${buildAllocSelect(target)}</select><input type="number" min="0" max="100" placeholder="%" value="${ratio}" style="width:62px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px;text-align:center"><span style="font-size:11px;color:#888">%</span><button class="rm-btn" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById('allocRows').appendChild(row);
+}
+function saveEmp(){
+  const allocs=[];let total=0;
+  document.getElementById('allocRows').querySelectorAll('.alloc-row-item').forEach(row=>{
+    const s=row.querySelector('select'),i=row.querySelector('input');
+    if(s&&i&&i.value){const r=parseFloat(i.value)||0;total+=r;allocs.push({t:s.value,r});}
+  });
+  if(!allocs.length){alert('配賦先を1つ以上追加してください');return;}
+  if(Math.round(total)!==100){alert('配賦比率の合計を100%にしてください（現在'+Math.round(total)+'%）');return;}
+  const deptSel=document.getElementById('f_dept');
+  const dept=currentUser.type==='admin'&&deptSel&&document.getElementById('f_dept_group').style.display!=='none'
+    ? deptSel.value
+    : (currentUser.type==='dept'?currentUser.dept:(editIdx!==null?employees[editIdx].dept:'役員'));
+  const emp={id:document.getElementById('f_id').value||'E'+String(employees.length+1).padStart(3,'0'),name:document.getElementById('f_name').value||'（未入力）',etype:document.getElementById('f_etype').value,dept,salary:parseFloat(document.getElementById('f_salary').value)||0,month:parseInt(document.getElementById('f_month').value),allocs};
+  if(editIdx!==null) employees[editIdx]=emp; else employees.push(emp);
+  saveData(); closeModal();
+  const banner=document.getElementById('dept-done-banner');
+  if(banner){banner.style.display='block';setTimeout(()=>banner.style.display='none',3000);}
+  renderDeptScreen();
+}
+function delEmp(gi){
+  if(!confirm('削除してもよろしいですか？')) return;
+  employees.splice(gi,1); saveData(); renderDeptScreen();
+}
+
+/* ---- CSV ---- */
+function buildProjectData(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const data=employees.filter(e=>mo===0||e.month===mo);
+  const pM={};
+  data.forEach(e=>e.allocs.forEach(a=>{
+    if(!pM[a.t]) pM[a.t]={alloc:0,count:0, cat:''};
+    pM[a.t].alloc += allocAmt(e,a);
+    pM[a.t].count++;
+    const item=ALLOC_TARGETS.find(x=>x.name===a.t);
+    if(item) pM[a.t].cat=item.cat;
+  }));
+  const pSorted=ALLOC_TARGETS.map(x=>x.name).filter(n=>pM[n]).concat(
+    Object.keys(pM).filter(n=>!ALLOC_TARGETS.find(x=>x.name===n))
+  );
+  return {pM, pSorted};
+}
+function renderProjectTable(){
+  const tbl=document.getElementById('project-breakdown-table');
+  if(!tbl) return;
+  const {pM,pSorted}=buildProjectData();
+  if(!pSorted.length){tbl.innerHTML='';return;}
+  const total=pSorted.reduce((s,n)=>s+pM[n].alloc,0);
+  tbl.innerHTML=`<table>
+    <thead><tr><th>大項目</th><th>プロジェクト</th><th>配賦金額</th><th>構成比</th></tr></thead>
+    <tbody>${pSorted.map(n=>{
+      const d=pM[n]; const pct=total>0?Math.round(d.alloc/total*1000)/10:0;
+      return `<tr><td style="color:#888;font-size:11px">${d.cat||'—'}</td><td style="font-weight:500">${n}</td><td>${fmt(d.alloc)}</td><td>${pct}%</td></tr>`;
+    }).join('')}
+    <tr style="font-weight:600;background:#f8f7f4"><td colspan="2">合計</td><td>${fmt(total)}</td><td>100%</td></tr>
+    </tbody>
+  </table>`;
+}
+function exportProjectCSV(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const {pM,pSorted}=buildProjectData();
+  const total=pSorted.reduce((s,n)=>s+pM[n].alloc,0);
+  const bom='\uFEFF';
+  const hdr='大項目,プロジェクト,配賦金額,構成比\n';
+  const rows=pSorted.map(n=>{
+    const d=pM[n]; const pct=total>0?Math.round(d.alloc/total*1000)/10:0;
+    return `${d.cat||''},${n},${d.alloc},${pct}%`;
+  }).join('\n');
+  const footer=`\n合計,,${total},100%`;
+  const label=mo===0?'全月':mo+'月';
+  dl(bom+hdr+rows+footer, `プロジェクト別配賦_${label}_${today()}.csv`);
+}
+function exportAllCSV(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const data=employees.filter(e=>mo===0||e.month===mo);
+  const bom='\uFEFF';
+  const hdr='社員番号,氏名,雇用区分,所属部門,基本給,配賦先1,比率1,配賦先2,比率2,配賦先3,比率3,月\n';
+  const rows=data.map(e=>{const c=[e.id,e.name,e.etype,e.dept,e.salary];for(let i=0;i<3;i++){c.push(e.allocs[i]?e.allocs[i].t:'');c.push(e.allocs[i]?e.allocs[i].r:'');}c.push(e.month);return c.join(',');}).join('\n');
+  dl(bom+hdr+rows,'全社人件費配賦_'+today()+'.csv');
+}
+function importCSVClick(){document.getElementById('importFileInput').click();}
+function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const text=ev.target.result.replace(/^\uFEFF/,'');
+    const lines=text.trim().split('\n');let added=0,skipped=0;
+    lines.slice(1).forEach(line=>{
+      const c=line.split(',');if(c.length<5){skipped++;return;}
+      const allocs=[];for(let i=5;i<11;i+=2){if(c[i]&&c[i+1]&&parseFloat(c[i+1])){allocs.push({t:c[i].trim(),r:parseFloat(c[i+1])});}}
+      if(!allocs.length){skipped++;return;}
+      employees.push({id:c[0].trim(),name:c[1].trim(),etype:c[2].trim()||'正社員',dept:c[3].trim(),salary:parseFloat(c[4])||0,month:parseInt(c[11])||3,allocs});
+      added++;
+    });
+    saveData(); renderAdminScreen();
+    alert(added+'件インポートしました'+(skipped>0?'（'+skipped+'件スキップ）':''));
+  };
+  reader.readAsText(file,'UTF-8');
+  e.target.value='';
+}
+function getChecks(){return JSON.parse(localStorage.getItem('jinkenhi_checks')||'{}');}
+function saveChecks(c){localStorage.setItem('jinkenhi_checks',JSON.stringify(c));}
+function checkKey(dept,mo){return 'check_'+dept+'_'+mo;}
+
+function renderDeptConfirmBar(){
+  const bar=document.getElementById('dept-confirm-bar');
+  if(!bar||!currentUser||currentUser.type!=='dept') return;
+  const mo=parseInt(document.getElementById('dept-monthSel').value);
+  if(mo===0){bar.innerHTML='';return;}
+  const dept=currentUser.dept;
+  const checks=getChecks();
+  const key=checkKey(dept,mo);
+  const entry=checks[key];
+  if(entry){
+    bar.innerHTML=`<div style="background:#e8f7ed;border:1px solid #a8d8b8;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px;color:#1e6e3e">✓</span>
+        <div>
+          <div style="font-weight:600;font-size:13px;color:#1e6e3e">${mo}月の入力確認済み</div>
+          <div style="font-size:11px;color:#3a8a5a">${entry.date} に確認</div>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="deptToggleCheck('${dept}',${mo})" style="font-size:11px;color:#888">確認を取り消す</button>
+    </div>`;
+  } else {
+    bar.innerHTML=`<div style="background:#fff8f0;border:1.5px dashed #e8c090;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:#888">${mo}月の入力内容を確認したらチェックしてください</div>
+      <button class="btn btn-sm" onclick="deptToggleCheck('${dept}',${mo})" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a">✓ 入力確認完了</button>
+    </div>`;
+  }
+}
+
+function deptToggleCheck(dept,mo){
+  const checks=getChecks();
+  const key=checkKey(dept,mo);
+  if(checks[key]){
+    if(!confirm('確認済みを取り消しますか？')) return;
+    delete checks[key];
+  } else {
+    const now=new Date();
+    const date=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+    checks[key]={date,dept};
+  }
+  saveChecks(checks);
+  renderDeptConfirmBar();
+}
+
+function renderCheckStatus(){
+  const bar=document.getElementById('check-status-bar');
+  if(!bar) return;
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  if(mo===0){
+    bar.innerHTML='';
+    return;
+  }
+  const checks=getChecks();
+  const total=DEPTS.length;
+  const done=DEPTS.filter(d=>checks[checkKey(d,mo)]);
+  const notDone=DEPTS.filter(d=>!checks[checkKey(d,mo)]);
+  const doneHtml=done.map(d=>{
+    const e=checks[checkKey(d,mo)];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;background:#e8f7ed;color:#1e6e3e;border:1px solid #a8d8b8">✓ ${d} <span style="font-size:10px;opacity:0.7">${e.date}</span></span>`;
+  }).join('');
+  const notDoneHtml=notDone.map(d=>`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;background:#fff3f0;color:#c0392b;border:1px solid #e8a0a0">未完了 ${d}</span>`).join('');
+  bar.innerHTML=`<div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <span style="font-weight:600;font-size:13px">${mo}月 部門別 入力確認状況</span>
+      <span style="font-size:12px;color:#888">${done.length} / ${total} 部門 完了</span>
+    </div>
+    ${done.length>0?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${doneHtml}</div>`:''}
+    ${notDone.length>0?`<div style="display:flex;flex-wrap:wrap;gap:6px">${notDoneHtml}</div>`:''}
+  </div>`;
+}
+
+function toggleCheck(mo){
+  renderCheckStatus();
+}
+function copyToNextMonth(){
+  const srcMonth = parseInt(document.getElementById('copy-src-month').value);
+  const dstMonth = srcMonth === 12 ? 1 : srcMonth + 1;
+  const srcData = employees.filter(e => e.month === srcMonth);
+  if(!srcData.length){
+    alert(srcMonth+'月のデータがありません');
+    return;
+  }
+  const alreadyExists = employees.some(e => e.month === dstMonth);
+  if(alreadyExists){
+    if(!confirm(dstMonth+'月のデータがすでに存在します。追加でコピーしますか？（既存データは残ります）')) return;
+  }
+  const copied = srcData.map(e => ({...e, month: dstMonth}));
+  employees.push(...copied);
+  saveData();
+  const st = document.getElementById('copy-status');
+  st.textContent = '✓ '+srcMonth+'月→'+dstMonth+'月に'+copied.length+'名分コピーしました';
+  setTimeout(()=>st.textContent='', 4000);
+  renderAdminScreen();
+}
+function clearAllData(){
+  if(!confirm('全データを削除します。この操作は取り消せません。よろしいですか？')) return;
+  employees=[]; saveData(); renderAdminScreen();
+}
+function dl(content,filename){
+  const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+function today(){return new Date().toISOString().slice(0,10);}
+
+/* ---- 初期化 ---- */
+(function init(){
+  const sel=document.getElementById('login-dept-sel');
+  sel.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join('');
+  document.getElementById('login-dept-pw').addEventListener('keydown',e=>{if(e.key==='Enter')deptLogin();});
+  document.getElementById('login-admin-pw').addEventListener('keydown',e=>{if(e.key==='Enter')adminLogin();});
+  document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+})();
+</script>
+</body>
+</html>
