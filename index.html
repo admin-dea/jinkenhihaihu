@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人件費配賦管理システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI',sans-serif;font-size:14px;color:#1a1a1a;background:#f5f4f0;min-height:100vh}
+.screen{display:none}.screen.active{display:block}
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.loading-overlay.active{display:flex}
+.spinner{width:32px;height:32px;border:3px solid #e0dfd8;border-top-color:#1a1a1a;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:#888}
+
+/* ログイン */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:#f5f4f0}
+.login-card{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:36px 32px;width:100%;max-width:400px;box-shadow:0 2px 16px rgba(0,0,0,0.07)}
+.login-logo{font-size:18px;font-weight:600;margin-bottom:4px}
+.login-sub{font-size:12px;color:#888;margin-bottom:24px}
+.login-tabs{display:flex;gap:2px;background:#f0efe8;border-radius:8px;padding:3px;margin-bottom:20px}
+.login-tab{flex:1;padding:8px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:13px;font-family:inherit;color:#666}
+.login-tab.active{background:#fff;color:#1a1a1a;border:1px solid #e0dfd8;font-weight:500}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.form-group label{font-size:11px;color:#666;font-weight:500}
+.form-group select,.form-group input{padding:10px 11px;border:1px solid #d0cfc8;border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:13px}
+.btn-login{width:100%;padding:11px;border-radius:8px;border:none;background:#1a1a1a;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px}
+.btn-login:hover{opacity:0.85}
+.login-err{font-size:12px;color:#c0392b;margin-top:8px;min-height:18px}
+.login-hint{font-size:11px;color:#aaa;margin-top:10px}
+
+/* アプリ共通 */
+.app-wrap{display:flex;flex-direction:column;min-height:100vh}
+.app-header{padding:12px 24px;background:#fff;border-bottom:1px solid #e0dfd8;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.app-logo{font-size:15px;font-weight:600}
+.tab-bar{display:flex;gap:2px;background:#f0efe8;border-radius:8px;padding:3px}
+.tab{padding:6px 14px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:12px;font-family:inherit;color:#666}
+.tab.active{background:#fff;color:#1a1a1a;border:1px solid #e0dfd8;font-weight:500}
+.user-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:12px;background:#f0efe8;border:1px solid #e0dfd8}
+.user-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.btn{padding:6px 13px;border-radius:8px;border:1px solid #d0cfc8;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:#1a1a1a;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{background:#f0efe8}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn-primary:hover{opacity:0.85;background:#1a1a1a}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-danger{background:#c0392b;color:#fff;border-color:#c0392b}
+.content{padding:20px 24px;flex:1}
+.panel{display:none}.panel.active{display:block}
+
+/* メトリクス */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.mc{background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:12px 14px}
+.mc-label{font-size:11px;color:#888;margin-bottom:4px}
+.mc-value{font-size:20px;font-weight:600}
+
+/* テーブル */
+.table-wrap{border:1px solid #e0dfd8;border-radius:10px;overflow:auto;margin-bottom:18px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:9px 12px;text-align:left;font-weight:500;font-size:11px;color:#888;border-bottom:1px solid #e0dfd8;white-space:nowrap;background:#f8f7f4}
+td{padding:9px 12px;border-bottom:1px solid #f0efe8;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#faf9f6}
+
+/* バッジ */
+.etype{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
+.et-full{background:#EEEDFE;color:#3C3489}
+.et-contract{background:#E1F5EE;color:#085041}
+.et-dispatch{background:#FAEEDA;color:#633806}
+.et-exec{background:#FAECE7;color:#712B13}
+.et-keiyaku{background:#E6F1FB;color:#0C447C}
+.alloc-tag{padding:2px 7px;border-radius:9px;font-size:10px;white-space:nowrap;background:#dbeeff;color:#0c4a7c}
+.alloc-cell{display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+
+/* 部門カード */
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px}
+.dept-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.dept-bar-wrap{height:4px;background:#f0efe8;border-radius:4px;margin:8px 0}
+.dept-bar{height:4px;border-radius:4px}
+
+/* チャート */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+@media(max-width:600px){.chart-row{grid-template-columns:1fr}}
+.chart-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.chart-title{font-size:11px;font-weight:500;color:#888;margin-bottom:10px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:10px;color:#666}
+.ld{display:flex;align-items:center;gap:3px}
+.ldot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* パスワード設定 */
+.pw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:18px}
+.pw-card{background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px}
+.pw-card-title{font-weight:500;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.pw-input-row{display:flex;gap:6px;align-items:center}
+.pw-input-row input{flex:1;padding:7px 9px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+
+.section-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.section-title{font-size:15px;font-weight:600}
+.period-sel{padding:6px 9px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+.info-box{background:#f8f7f4;border:1px solid #e0dfd8;border-radius:8px;padding:11px 14px;font-size:12px;color:#666;margin-bottom:14px}
+.done-banner{background:#e8f7ed;border:1px solid #a8d8b8;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e6e3e;margin-bottom:14px}
+
+/* モーダル */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-start;justify-content:center;padding-top:60px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border:1px solid #d0cfc8;border-radius:12px;padding:22px;width:92%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-weight:600;font-size:15px}
+.close-btn{background:none;border:none;cursor:pointer;font-size:18px;color:#999;padding:2px 6px}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:11px}
+.fg label{font-size:11px;color:#666;font-weight:500}
+.fg input,.fg select{padding:8px 10px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:13px}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.alloc-row-item{display:flex;gap:5px;margin-bottom:7px;align-items:center}
+.alloc-row-item select{flex:1;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px}
+.alloc-row-item input{width:62px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px;text-align:center}
+.rm-btn{background:none;border:none;cursor:pointer;color:#aaa;font-size:16px;padding:0 3px}
+</style>
+</head>
+<body>
+
+<!-- ローディング -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">読み込み中...</div>
+</div>
+
+<!-- ログイン画面 -->
+<div class="screen active" id="screen-login">
+<div class="login-wrap">
+<div class="login-card">
+  <div class="login-logo">人件費配賦管理システム</div>
+  <div class="login-sub">部門または管理者としてログインしてください</div>
+  <div class="login-tabs">
+    <button class="login-tab active" onclick="switchLoginTab('dept',this)">部門長ログイン</button>
+    <button class="login-tab" onclick="switchLoginTab('admin',this)">管理者ログイン</button>
+  </div>
+  <div id="login-dept-form">
+    <div class="form-group"><label>部門を選択</label><select id="login-dept-sel"></select></div>
+    <div class="form-group"><label>パスワード</label><input type="password" id="login-dept-pw" placeholder="部門パスワードを入力"></div>
+    <div class="login-err" id="dept-login-err"></div>
+    <button class="btn-login" onclick="deptLogin()">ログイン</button>
+  </div>
+  <div id="login-admin-form" style="display:none">
+    <div class="form-group"><label>管理者パスワード</label><input type="password" id="login-admin-pw" placeholder="管理者パスワードを入力"></div>
+    <div class="login-err" id="admin-login-err"></div>
+    <button class="btn-login" onclick="adminLogin()">ログイン</button>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 部門長画面 -->
+<div class="screen" id="screen-dept">
+<div class="app-wrap">
+<div class="app-header">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span class="app-logo">人件費配賦管理</span>
+    <div class="tab-bar">
+      <button class="tab active" onclick="showDeptPanel('list',this)">配賦一覧・入力</button>
+      <button class="tab" onclick="showDeptPanel('incoming',this)">他部署からの配賦</button>
+      <button class="tab" onclick="showDeptPanel('summary',this)">部門サマリ</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select class="period-sel" id="dept-monthSel" onchange="renderDeptScreen()">
+      <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+      <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+      <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <span class="user-badge"><span class="user-dot" id="dept-dot"></span><span id="dept-badge-name"></span></span>
+    <button class="btn btn-sm" onclick="logout()">ログアウト</button>
+  </div>
+</div>
+<div class="content">
+  <div class="panel active" id="dpanel-list">
+    <div id="dept-done-banner" style="display:none" class="done-banner">✓ 保存しました</div>
+    <div id="dept-confirm-bar" style="margin-bottom:14px"></div>
+    <div class="metrics-row" id="dept-metrics"></div>
+    <div class="section-bar">
+      <span class="section-title" id="dept-section-title"></span>
+      <button class="btn btn-primary btn-sm" onclick="openEmpModal()">＋ 社員追加</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>社員番号</th><th>氏名</th><th>雇用区分</th><th>基本給</th><th>配賦先・比率</th><th>操作</th></tr></thead>
+        <tbody id="dept-emp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel" id="dpanel-incoming">
+    <div class="section-bar"><span class="section-title" id="incoming-title">他部署からの配賦</span></div>
+    <div id="incoming-not-configured" style="display:none;background:#fff8f0;border:1px solid #e8c090;border-radius:8px;padding:14px 16px;font-size:13px;color:#888;margin-bottom:14px">担当プロジェクトが設定されていません。管理者に設定を依頼してください。</div>
+    <div id="incoming-content"></div>
+  </div>
+  <div class="panel" id="dpanel-summary">
+    <div class="metrics-row" id="dept-sum-metrics"></div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">雇用区分別 配賦金額</div>
+        <div class="chart-legend" id="dept-etype-legend"></div>
+        <div style="position:relative;height:190px"><canvas id="deptEtypeChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">配賦先別 構成比</div>
+        <div class="chart-legend" id="dept-alloc-legend"></div>
+        <div style="position:relative;height:190px"><canvas id="deptAllocChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 管理者画面 -->
+<div class="screen" id="screen-admin">
+<div class="app-wrap">
+<div class="app-header">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span class="app-logo">人件費配賦管理 <span style="font-size:11px;font-weight:400;color:#888">管理者</span></span>
+    <div class="tab-bar">
+      <button class="tab active" onclick="showAdminPanel('overview',this)">全社概要</button>
+      <button class="tab" onclick="showAdminPanel('all',this)">全社員一覧</button>
+      <button class="tab" onclick="showAdminPanel('settings',this)">設定</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select class="period-sel" id="admin-monthSel" onchange="renderAdminScreen()">
+      <option value="1">1月</option><option value="2">2月</option><option value="3" selected>3月</option>
+      <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+      <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <span class="user-badge"><span class="user-dot" style="background:#D85A30"></span>管理者</span>
+    <button class="btn btn-sm" onclick="exportCSV()">CSV出力</button>
+    <button class="btn btn-sm" onclick="logout()">ログアウト</button>
+  </div>
+</div>
+<div class="content">
+  <div class="panel active" id="apanel-overview">
+    <div id="check-status-bar" style="margin-bottom:14px"></div>
+    <div class="metrics-row" id="admin-metrics"></div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+          <span class="chart-title" style="margin-bottom:0">プロジェクト別 配賦金額（万円）</span>
+          <button class="btn btn-sm" onclick="exportProjectCSV()" style="font-size:11px">CSV出力</button>
+        </div>
+        <div class="chart-legend" id="admin-bar-legend"></div>
+        <div style="position:relative;height:260px"><canvas id="adminBarChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">雇用区分別 構成比</div>
+        <div class="chart-legend" id="admin-etype-legend"></div>
+        <div style="position:relative;height:210px"><canvas id="adminEtypeChart"></canvas></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="project-breakdown-table"></div>
+  </div>
+  <div class="panel" id="apanel-all">
+    <div class="section-bar">
+      <span class="section-title">全社員 配賦一覧</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select class="period-sel" id="admin-dept-filter" onchange="renderAdminAll()"><option value="">全部門</option></select>
+        <select class="period-sel" id="admin-etype-filter" onchange="renderAdminAll()">
+          <option value="">全区分</option>
+          <option>正社員</option><option>業務委託</option><option>派遣社員</option><option>役員</option><option>契約社員</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>社員番号</th><th>氏名</th><th>雇用区分</th><th>所属部門</th><th>基本給</th><th>配賦先・比率</th><th>配賦金額</th><th>月</th></tr></thead>
+        <tbody id="admin-all-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel" id="apanel-settings">
+    <div class="section-bar"><span class="section-title">プロジェクト担当部署マスタ</span></div>
+    <div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="font-size:12px;color:#888;margin-bottom:12px">各プロジェクトの担当部署を設定します。</div>
+      <div id="project-dept-master" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px"></div>
+      <button class="btn btn-primary btn-sm" onclick="saveProjectDeptMaster()" style="margin-top:12px">保存</button>
+      <span id="project-dept-status" style="font-size:12px;color:#1e6e3e;margin-left:10px"></span>
+    </div>
+    <div class="section-bar"><span class="section-title">社員マスタ管理</span></div>
+    <div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px">
+      <div style="font-size:12px;color:#888;margin-bottom:10px">社員情報はスプレッドシートの「社員マスタ」シートで直接編集してください。</div>
+      <a href="https://docs.google.com/spreadsheets/d/1M-CR8vUXGqMB1J6zjdtIcmGGQXOLD20Y9HdxHci1spw/edit" target="_blank" class="btn btn-sm">スプレッドシートを開く</a>
+    </div>
+    <div class="section-bar"><span class="section-title">部門パスワード設定</span></div>
+    <div class="pw-grid" id="pw-grid"></div>
+    <div class="section-bar"><span class="section-title">管理者パスワード変更</span></div>
+    <div style="max-width:360px;background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:18px">
+      <div class="fg"><label>新しいパスワード</label><input type="password" id="admin-pw-new" placeholder="新しいパスワード"></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">変更する</button>
+        <span id="admin-pw-status" style="font-size:12px;color:#1e6e3e"></span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- 配賦編集モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+<div class="modal" onclick="event.stopPropagation()">
+  <div class="modal-header">
+    <span class="modal-title" id="modal-title">配賦を編集</span>
+    <button class="close-btn" onclick="closeModal()">×</button>
+  </div>
+  <div id="modal-emp-info" style="background:#f8f7f4;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px"></div>
+  <div style="font-size:11px;color:#888;margin-bottom:8px;font-weight:500">配賦先・比率（合計100%）</div>
+  <div id="allocRows"></div>
+  <button class="btn btn-sm" onclick="addAllocRow()" style="margin-bottom:16px">＋ 配賦先を追加</button>
+  <div style="display:flex;justify-content:flex-end;gap:8px">
+    <button class="btn btn-sm" onclick="closeModal()">キャンセル</button>
+    <button class="btn btn-primary btn-sm" onclick="saveEmpAlloc()">保存</button>
+  </div>
+</div>
+</div>
+
+<script>
+const DEPTS = ['役員','ピクトレ','開発','新規開発','営業','経理・財務','人事・総務','コーポレートIT','シンガポール'];
+const ALLOC_TARGETS = [
+  {cat:"全体配賦",name:"CEO"},
+  {cat:"全体配賦",name:"資金・クリプトオペレーション"},
+  {cat:"全体配賦",name:"会計・税務"},
+  {cat:"全体配賦",name:"IR・監査"},
+  {cat:"全体配賦",name:"人事労務"},
+  {cat:"全体配賦",name:"総務"},
+  {cat:"全体配賦",name:"Corporate IT"},
+  {cat:"全体配賦",name:"法務"},
+  {cat:"全体配賦",name:"資金調達 IPO準備"},
+  {cat:"全体配賦",name:"マーケ・PR・CS"},
+  {cat:"全体配賦",name:"マケプレ運用"},
+  {cat:"全体配賦",name:"プラットフォーム開発・運用"},
+  {cat:"全体配賦",name:"営業補助 促進"},
+  {cat:"旧BtoC事業",name:"旧BtoC事業"},
+  {cat:"ピクトレ",name:"ピクトレ"},
+  {cat:"Lucky Farmer",name:"Lucky Farmer"},
+  {cat:"Lucky Farmer",name:"障がい者雇用"},
+  {cat:"その他新規開発",name:"Eco Catcher Battle"},
+  {cat:"その他新規開発",name:"Asics"},
+  {cat:"その他新規開発",name:"DEPチェーンノードセール（人間認証発行インフラ運営データ検証ソフトウェア販売事業）"},
+  {cat:"その他新規開発",name:"メンタグラフ"},
+  {cat:"その他新規開発",name:"竹中工務店"},
+  {cat:"その他新規開発",name:"ひみつ結社"},
+  {cat:"その他新規開発",name:"DEPチェーン開発"},
+  {cat:"その他新規開発",name:"DEPマーケティング施策"},
+];
+const ETYPE_CLASS = {'正社員':'et-full','業務委託':'et-contract','派遣社員':'et-dispatch','役員':'et-exec','契約社員':'et-keiyaku'};
+const ETYPE_COLORS = {'正社員':'#534AB7','業務委託':'#0F6E56','派遣社員':'#854F0B','役員':'#993C1D','契約社員':'#185FA5'};
+const DEPT_COLORS = ['#993C1D','#1D9E75','#378ADD','#534AB7','#BA7517','#D4537E','#0F6E56','#185FA5','#888780'];
+const PROJ_COLORS = ['#378ADD','#1D9E75','#BA7517','#D4537E','#0F6E56','#534AB7','#993C1D','#185FA5'];
+
+let currentUser = null;
+let editEmpId = null;
+let chartInsts = {};
+
+// データキャッシュ
+let cachedEmployees = [];
+let cachedAllocs = [];
+let cachedChecks = {};
+let cachedProjDept = {};
+
+const fmt = n => (n||0).toLocaleString('ja-JP')+'円';
+const fmtK = n => Math.round((n||0)/10000)+'万円';
+
+function showLoading(text='処理中...'){
+  document.getElementById('loadingText').textContent=text;
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+function hideLoading(){document.getElementById('loadingOverlay').classList.remove('active');}
+
+// ============================================================
+// GAS APIのURL（デプロイしたGASのURLに変更してください）
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyj7qKuVUiR-NaGeAb1QUO9qMqCqS-aOWS2RVr2jywAuFZn16flU2Qseif0NqumYMEr/exec';
+
+// API呼び出しラッパー（fetchでGASのdoPostを呼ぶ）
+async function call(action, params={}) {
+  const res = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({action, ...params}),
+    redirect: 'follow',
+  });
+  const data = await res.json();
+  return data;
+}
+
+/* ---- ログイン ---- */
+function switchLoginTab(type,btn){
+  document.querySelectorAll('.login-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('login-dept-form').style.display=type==='dept'?'block':'none';
+  document.getElementById('login-admin-form').style.display=type==='admin'?'block':'none';
+}
+
+async function deptLogin(){
+  const dept=document.getElementById('login-dept-sel').value;
+  const pw=document.getElementById('login-dept-pw').value;
+  const err=document.getElementById('dept-login-err');
+  showLoading('ログイン中...');
+  try{
+    const res=await call('login',{dept,password:pw});
+    hideLoading();
+    if(res.ok&&res.type==='dept'){
+      err.textContent=''; currentUser={type:'dept',dept};
+      await loadAllData();
+      showScreen('screen-dept'); renderDeptScreen();
+    } else {
+      err.textContent='パスワードが正しくありません';
+      document.getElementById('login-dept-pw').value='';
+    }
+  }catch(e){hideLoading();err.textContent='エラーが発生しました';}
+}
+
+async function adminLogin(){
+  const pw=document.getElementById('login-admin-pw').value;
+  const err=document.getElementById('admin-login-err');
+  showLoading('ログイン中...');
+  try{
+    const res=await call('login',{dept:'管理者',password:pw});
+    hideLoading();
+    if(res.ok&&res.type==='admin'){
+      err.textContent=''; currentUser={type:'admin'};
+      await loadAllData();
+      showScreen('screen-admin'); renderAdminScreen();
+    } else {
+      err.textContent='パスワードが正しくありません';
+      document.getElementById('login-admin-pw').value='';
+    }
+  }catch(e){hideLoading();err.textContent='エラーが発生しました';}
+}
+
+async function loadAllData(){
+  showLoading('データを読み込み中...');
+  try{
+    const [emps,allocs,checks,projDept]=await Promise.all([
+      call('getEmployees'),
+      call('getAllocs',{month:null}),
+      call('getChecks'),
+      call('getProjectDeptMaster'),
+    ]);
+    cachedEmployees=emps||[];
+    cachedAllocs=allocs||[];
+    cachedChecks=checks||{};
+    cachedProjDept=projDept||{};
+  }finally{hideLoading();}
+}
+
+function logout(){
+  currentUser=null; cachedEmployees=[]; cachedAllocs=[]; cachedChecks={}; cachedProjDept={};
+  ['login-dept-pw','login-admin-pw'].forEach(id=>document.getElementById(id).value='');
+  ['dept-login-err','admin-login-err'].forEach(id=>document.getElementById(id).textContent='');
+  showScreen('screen-login');
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---- 部門長 ---- */
+function showDeptPanel(id,btn){
+  document.querySelectorAll('#screen-dept .panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#screen-dept .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('dpanel-'+id).classList.add('active'); btn.classList.add('active');
+  if(id==='incoming') renderIncomingPanel();
+  else if(id==='summary') renderDeptSummary();
+  else renderDeptScreen();
+}
+
+function getDeptEmployees(){
+  const dept=currentUser.dept;
+  return cachedEmployees.filter(e=>e.dept===dept);
+}
+
+function getEmpAllocs(empId,month){
+  return cachedAllocs.filter(a=>a.empId===empId&&a.month==month);
+}
+
+function renderDeptScreen(){
+  if(!currentUser||currentUser.type!=='dept') return;
+  const dept=currentUser.dept;
+  const di=DEPTS.indexOf(dept);
+  document.getElementById('dept-dot').style.background=DEPT_COLORS[di%DEPT_COLORS.length];
+  document.getElementById('dept-badge-name').textContent=dept;
+  document.getElementById('dept-section-title').textContent=dept+' 配賦一覧';
+  renderDeptConfirmBar();
+
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const emps=getDeptEmployees();
+  const totSal=emps.reduce((s,e)=>s+(e.salary||0),0);
+  const totAlloc=emps.reduce((s,e)=>s+getEmpAllocs(e.id,month).reduce((ss,a)=>ss+(a.amount||0),0),0);
+
+  document.getElementById('dept-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">社員数</div><div class="mc-value">${emps.length}名</div></div>`+
+    `<div class="mc"><div class="mc-label">基本給合計</div><div class="mc-value">${fmtK(totSal)}</div></div>`+
+    `<div class="mc"><div class="mc-label">配賦金額合計</div><div class="mc-value">${fmtK(totAlloc)}</div></div>`;
+
+  const tb=document.getElementById('dept-emp-tbody');
+  if(!emps.length){
+    tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:24px">データがありません</td></tr>';
+    return;
+  }
+  tb.innerHTML=emps.map(e=>{
+    const allocs=getEmpAllocs(e.id,month);
+    const tags=allocs.length
+      ? allocs.map(a=>`<span class="alloc-tag">${a.target} ${a.ratio}%</span>`).join('')
+      : '<span style="color:#aaa;font-size:11px">未設定</span>';
+    return `<tr>
+      <td>${e.id}</td>
+      <td style="font-weight:500">${e.name}</td>
+      <td><span class="etype ${ETYPE_CLASS[e.etype]||'et-full'}">${e.etype}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" value="${e.salary||0}" min="0" style="width:110px;padding:4px 7px;border:1px solid #d0cfc8;border-radius:6px;font-family:inherit;font-size:12px;background:#fff;color:#1a1a1a" onchange="updateSalaryLocal('${e.id}',this.value)">
+          <span style="font-size:11px;color:#888">円</span>
+        </div>
+      </td>
+      <td><div class="alloc-cell">${tags}</div></td>
+      <td><button class="btn btn-sm" onclick="openEmpModal('${e.id}')">配賦設定</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDeptConfirmBar(){
+  const bar=document.getElementById('dept-confirm-bar');
+  if(!bar||!currentUser||currentUser.type!=='dept') return;
+  const mo=parseInt(document.getElementById('dept-monthSel').value);
+  const dept=currentUser.dept;
+  const key=dept+'_'+mo;
+  const entry=cachedChecks[key];
+  if(entry){
+    bar.innerHTML=`<div style="background:#e8f7ed;border:1px solid #a8d8b8;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px;color:#1e6e3e">✓</span>
+        <div><div style="font-weight:600;font-size:13px;color:#1e6e3e">${mo}月の入力確認済み</div>
+        <div style="font-size:11px;color:#3a8a5a">${entry.date} に確認</div></div>
+      </div>
+      <button class="btn btn-sm" onclick="deptToggleCheck('${dept}',${mo},false)" style="font-size:11px;color:#888">確認を取り消す</button>
+    </div>`;
+  } else {
+    bar.innerHTML=`<div style="background:#fff8f0;border:1.5px dashed #e8c090;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:#888">${mo}月の入力内容を確認したらチェックしてください</div>
+      <button class="btn btn-sm" onclick="deptToggleCheck('${dept}',${mo},true)" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a">✓ 入力確認完了</button>
+    </div>`;
+  }
+}
+
+async function deptToggleCheck(dept,mo,checked){
+  if(!checked&&!confirm('確認済みを取り消しますか？')) return;
+  showLoading('保存中...');
+  try{
+    await call('saveCheck',{dept,month:mo,checked});
+    const checks=await call('getChecks');
+    cachedChecks=checks||{};
+    renderDeptConfirmBar();
+    renderCheckStatus();
+  }finally{hideLoading();}
+}
+
+function renderDeptSummary(){
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const emps=getDeptEmployees();
+  const etMap={},aMap={};
+  emps.forEach(e=>{
+    const allocs=getEmpAllocs(e.id,month);
+    allocs.forEach(a=>{
+      etMap[e.etype]=(etMap[e.etype]||0)+(a.amount||0);
+      aMap[a.target]=(aMap[a.target]||0)+(a.amount||0);
+    });
+  });
+  const totAlloc=Object.values(aMap).reduce((s,v)=>s+v,0);
+  document.getElementById('dept-sum-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">社員数</div><div class="mc-value">${emps.length}名</div></div>`+
+    `<div class="mc"><div class="mc-label">配賦合計</div><div class="mc-value">${fmtK(totAlloc)}</div></div>`;
+
+  const eL=Object.keys(etMap),eV=eL.map(t=>etMap[t]),eC=eL.map(t=>ETYPE_COLORS[t]||'#888');
+  document.getElementById('dept-etype-legend').innerHTML=eL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${eC[i]}"></span>${l} ${fmtK(eV[i])}</span>`).join('');
+  if(chartInsts.deptEtype) chartInsts.deptEtype.destroy();
+  chartInsts.deptEtype=new Chart(document.getElementById('deptEtypeChart'),{type:'doughnut',data:{labels:eL,datasets:[{data:eV,backgroundColor:eC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+
+  const aL=Object.keys(aMap),aV=aL.map(t=>aMap[t]),aC=aL.map((_,i)=>PROJ_COLORS[i%PROJ_COLORS.length]);
+  document.getElementById('dept-alloc-legend').innerHTML=aL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${aC[i]}"></span>${l}</span>`).join('');
+  if(chartInsts.deptAlloc) chartInsts.deptAlloc.destroy();
+  chartInsts.deptAlloc=new Chart(document.getElementById('deptAllocChart'),{type:'doughnut',data:{labels:aL,datasets:[{data:aV,backgroundColor:aC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+}
+
+function renderIncomingPanel(){
+  if(!currentUser||currentUser.type!=='dept') return;
+  const dept=currentUser.dept;
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const myProjects=ALLOC_TARGETS.filter(x=>cachedProjDept[x.name]===dept).map(x=>x.name);
+  const notConf=document.getElementById('incoming-not-configured');
+  const content=document.getElementById('incoming-content');
+  document.getElementById('incoming-title').textContent=`他部署から「${dept}」担当プロジェクトへの配賦`;
+  if(!myProjects.length){
+    notConf.style.display='block'; content.innerHTML=''; return;
+  }
+  notConf.style.display='none';
+  const relAllocs=cachedAllocs.filter(a=>myProjects.includes(a.target)&&a.month==month);
+  const empMap={};
+  cachedEmployees.forEach(e=>empMap[e.id]=e);
+  const totalIncoming=relAllocs.reduce((s,a)=>s+(a.amount||0),0);
+  let html=`<div class="metrics-row" style="margin-bottom:14px">
+    <div class="mc"><div class="mc-label">担当プロジェクト数</div><div class="mc-value">${myProjects.length}件</div></div>
+    <div class="mc"><div class="mc-label">他部署からの配賦合計</div><div class="mc-value">${fmtK(totalIncoming)}</div></div>
+  </div>`;
+  myProjects.forEach(proj=>{
+    const rows=relAllocs.filter(a=>a.target===proj);
+    const projTotal=rows.reduce((s,r)=>s+(r.amount||0),0);
+    html+=`<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-weight:600;font-size:13px">${proj}</span>
+        <span style="font-size:12px;color:#888">合計 ${fmtK(projTotal)}</span>
+      </div>`;
+    if(!rows.length){
+      html+=`<div style="color:#aaa;font-size:12px;padding:10px 0">他部署からの配賦はありません</div>`;
+    } else {
+      html+=`<div class="table-wrap"><table>
+        <thead><tr><th>氏名</th><th>所属部門</th><th>雇用区分</th><th>配賦金額</th><th>月</th></tr></thead>
+        <tbody>${rows.map(r=>{
+          const e=empMap[r.empId]||{};
+          return `<tr>
+            <td style="font-weight:500">${e.name||r.empId}</td>
+            <td>${e.dept||''}</td>
+            <td><span class="etype ${ETYPE_CLASS[e.etype]||'et-full'}">${e.etype||''}</span></td>
+            <td style="font-weight:500">${fmt(r.amount)}</td>
+            <td>${r.month}月</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+    }
+    html+='</div>';
+  });
+  content.innerHTML=html;
+}
+
+/* ---- 配賦編集モーダル ---- */
+function buildAllocSelect(selected=''){
+  const groups={};
+  ALLOC_TARGETS.forEach(x=>{if(!groups[x.cat])groups[x.cat]=[];groups[x.cat].push(x.name);});
+  return Object.entries(groups).map(([cat,names])=>
+    `<optgroup label="${cat}">${names.map(n=>`<option${n===selected?' selected':''}>${n}</option>`).join('')}</optgroup>`
+  ).join('');
+}
+
+function openEmpModal(empId){
+  editEmpId=empId;
+  const emp=cachedEmployees.find(e=>e.id===empId);
+  if(!emp) return;
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const allocs=getEmpAllocs(empId,month);
+  document.getElementById('modal-title').textContent='配賦を設定';
+  document.getElementById('modal-emp-info').innerHTML=
+    `<span style="font-weight:500">${emp.name}</span> <span class="etype ${ETYPE_CLASS[emp.etype]||'et-full'}" style="margin-left:6px">${emp.etype}</span>`+
+    (emp.salary?`<span style="margin-left:10px;color:#888;font-size:11px">基本給 ${fmt(emp.salary)}</span>`:'');
+  document.getElementById('allocRows').innerHTML='';
+  if(allocs.length) allocs.forEach(a=>addAllocRow(a.target,a.ratio));
+  else addAllocRow();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+
+function addAllocRow(target='',ratio=''){
+  const row=document.createElement('div'); row.className='alloc-row-item';
+  row.innerHTML=`<select style="flex:1;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px">${buildAllocSelect(target)}</select>
+    <input type="number" min="0" max="100" placeholder="%" value="${ratio}" style="width:62px;padding:6px 8px;border:1px solid #d0cfc8;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:12px;text-align:center">
+    <span style="font-size:11px;color:#888">%</span>
+    <button class="rm-btn" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById('allocRows').appendChild(row);
+}
+
+function saveEmpAlloc(){
+  const allocs=[];let total=0;
+  document.getElementById('allocRows').querySelectorAll('.alloc-row-item').forEach(row=>{
+    const s=row.querySelector('select'),i=row.querySelector('input');
+    if(s&&i&&i.value){const r=parseFloat(i.value)||0;total+=r;allocs.push({target:s.value,ratio:r});}
+  });
+  if(!allocs.length){alert('配賦先を1つ以上追加してください');return;}
+  if(Math.round(total)!==100){alert('配賦比率の合計を100%にしてください（現在'+Math.round(total)+'%）');return;}
+  const emp=cachedEmployees.find(e=>e.id===editEmpId);
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  // ローカルキャッシュ更新
+  cachedAllocs=cachedAllocs.filter(a=>!(a.empId===editEmpId&&a.month==month));
+  allocs.forEach(a=>{
+    const amount=Math.round((emp.salary||0)*a.ratio/100);
+    cachedAllocs.push({empId:editEmpId,target:a.target,ratio:a.ratio,amount,month});
+  });
+  closeModal();
+  renderDeptScreen();
+  scheduleAutoSave();
+}
+
+let autoSaveTimer = null;
+function scheduleAutoSave(){
+  if(autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(()=>saveAllocsToSheet(true), 1500);
+}
+
+function updateSalaryLocal(empId, value){
+  const emp=cachedEmployees.find(e=>e.id===empId);
+  if(emp) emp.salary=parseFloat(value)||0;
+  // 配賦金額も再計算
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const allocs=cachedAllocs.filter(a=>a.empId===empId&&a.month==month);
+  allocs.forEach(a=>a.amount=Math.round((emp.salary||0)*a.ratio/100));
+  scheduleAutoSave();
+}
+
+async function saveAllocsToSheet(silent=false){
+  const month=parseInt(document.getElementById('dept-monthSel').value);
+  const dept=currentUser.dept;
+  const emps=getDeptEmployees();
+  const allocData=[];
+  emps.forEach(e=>{
+    const allocs=getEmpAllocs(e.id,month);
+    allocs.forEach(a=>{
+      allocData.push({empId:e.id,target:a.target,ratio:a.ratio,amount:a.amount||0});
+    });
+  });
+  const salaryData=emps.map(e=>({id:e.id,salary:e.salary||0}));
+  if(!silent) showLoading('保存中...');
+  try{
+    await Promise.all([
+      call('saveAllocs',{dept,month,allocData}),
+      call('updateEmployeeSalaries',{salaryData}),
+    ]);
+    const banner=document.getElementById('dept-done-banner');
+    banner.style.display='block'; setTimeout(()=>banner.style.display='none',2000);
+  }catch(e){if(!silent) alert('保存に失敗しました');
+  }finally{if(!silent) hideLoading();}
+}
+
+/* ---- 管理者 ---- */
+function showAdminPanel(id,btn){
+  document.querySelectorAll('#screen-admin .panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#screen-admin .tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('apanel-'+id).classList.add('active'); btn.classList.add('active');
+  renderAdminScreen();
+}
+
+async function renderAdminScreen(){
+  if(!currentUser||currentUser.type!=='admin') return;
+  showLoading('データを更新中...');
+  try{
+    const [emps,allocs,checks,projDept]=await Promise.all([
+      call('getEmployees'),call('getAllocs',{month:null}),call('getChecks'),call('getProjectDeptMaster'),
+    ]);
+    cachedEmployees=emps||[]; cachedAllocs=allocs||[]; cachedChecks=checks||{}; cachedProjDept=projDept||{};
+  }finally{hideLoading();}
+  renderAdminOverview(); renderAdminAll(); renderAdminDeptFilter(); renderProjectDeptMasterUI(); renderPwSettings();
+}
+
+function getAdminData(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  return cachedAllocs.filter(a=>a.month==mo);
+}
+
+function renderCheckStatus(){
+  const bar=document.getElementById('check-status-bar');
+  if(!bar) return;
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const done=DEPTS.filter(d=>cachedChecks[d+'_'+mo]);
+  const notDone=DEPTS.filter(d=>!cachedChecks[d+'_'+mo]);
+  const doneHtml=done.map(d=>{
+    const e=cachedChecks[d+'_'+mo];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;background:#e8f7ed;color:#1e6e3e;border:1px solid #a8d8b8">✓ ${d} <span style="font-size:10px;opacity:0.7">${e.date||''}</span></span>`;
+  }).join('');
+  const notDoneHtml=notDone.map(d=>`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;background:#fff3f0;color:#c0392b;border:1px solid #e8a0a0">未完了 ${d}</span>`).join('');
+  bar.innerHTML=`<div style="background:#fff;border:1px solid #e0dfd8;border-radius:10px;padding:14px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <span style="font-weight:600;font-size:13px">${mo}月 部門別 入力確認状況</span>
+      <span style="font-size:12px;color:#888">${done.length} / ${DEPTS.length} 部門 完了</span>
+    </div>
+    ${done.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${doneHtml}</div>`:''}
+    ${notDone.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${notDoneHtml}</div>`:''}
+  </div>`;
+}
+
+function renderAdminOverview(){
+  renderCheckStatus();
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const allocs=cachedAllocs.filter(a=>a.month==mo);
+  const totAlloc=allocs.reduce((s,a)=>s+(a.amount||0),0);
+  const empSet=new Set(allocs.map(a=>a.empId));
+  const etC={正社員:0,業務委託:0,派遣社員:0,役員:0,契約社員:0};
+  empSet.forEach(id=>{const e=cachedEmployees.find(x=>x.id===id);if(e)etC[e.etype]=(etC[e.etype]||0)+1;});
+  document.getElementById('admin-metrics').innerHTML=
+    `<div class="mc"><div class="mc-label">入力済み社員数</div><div class="mc-value">${empSet.size}名</div></div>`+
+    Object.entries(etC).filter(([,v])=>v>0).map(([t,c])=>`<div class="mc"><div class="mc-label"><span class="etype ${ETYPE_CLASS[t]}">${t}</span></div><div class="mc-value">${c}名</div></div>`).join('')+
+    `<div class="mc"><div class="mc-label">配賦合計</div><div class="mc-value">${fmtK(totAlloc)}</div></div>`;
+
+  const pM={};
+  allocs.forEach(a=>{pM[a.target]=(pM[a.target]||0)+(a.amount||0);});
+  const pSorted=ALLOC_TARGETS.map(x=>x.name).filter(n=>pM[n]);
+  const pVals=pSorted.map(n=>Math.round(pM[n]/10000));
+  const pColors=pSorted.map((_,i)=>PROJ_COLORS[i%PROJ_COLORS.length]);
+  document.getElementById('admin-bar-legend').innerHTML=pSorted.slice(0,8).map((l,i)=>`<span class="ld"><span class="ldot" style="background:${pColors[i]}"></span>${l}</span>`).join('');
+  if(chartInsts.adminBar) chartInsts.adminBar.destroy();
+  chartInsts.adminBar=new Chart(document.getElementById('adminBarChart'),{
+    type:'bar',data:{labels:pSorted,datasets:[{data:pVals,backgroundColor:pColors,borderRadius:3,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'万',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:45,autoSkip:false}}}}
+  });
+
+  const eM={};
+  empSet.forEach(id=>{
+    const e=cachedEmployees.find(x=>x.id===id);
+    if(e) allocs.filter(a=>a.empId===id).forEach(a=>eM[e.etype]=(eM[e.etype]||0)+(a.amount||0));
+  });
+  const eL=Object.keys(eM),eV=eL.map(t=>eM[t]),eC=eL.map(t=>ETYPE_COLORS[t]||'#888');
+  document.getElementById('admin-etype-legend').innerHTML=eL.map((l,i)=>`<span class="ld"><span class="ldot" style="background:${eC[i]}"></span>${l} ${fmtK(eV[i])}</span>`).join('');
+  if(chartInsts.adminEtype) chartInsts.adminEtype.destroy();
+  chartInsts.adminEtype=new Chart(document.getElementById('adminEtypeChart'),{type:'doughnut',data:{labels:eL,datasets:[{data:eV,backgroundColor:eC,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+
+  // プロジェクト別テーブル
+  const total=Object.values(pM).reduce((s,v)=>s+v,0);
+  const tbl=document.getElementById('project-breakdown-table');
+  if(pSorted.length){
+    tbl.innerHTML=`<table>
+      <thead><tr><th>大項目</th><th>プロジェクト</th><th>配賦金額</th><th>構成比</th></tr></thead>
+      <tbody>${pSorted.map(n=>{
+        const item=ALLOC_TARGETS.find(x=>x.name===n);
+        const pct=total>0?Math.round(pM[n]/total*1000)/10:0;
+        return `<tr><td style="color:#888;font-size:11px">${item?item.cat:'—'}</td><td style="font-weight:500">${n}</td><td>${fmt(pM[n])}</td><td>${pct}%</td></tr>`;
+      }).join('')}
+      <tr style="font-weight:600;background:#f8f7f4"><td colspan="2">合計</td><td>${fmt(total)}</td><td>100%</td></tr>
+      </tbody></table>`;
+  } else tbl.innerHTML='';
+}
+
+function renderAdminDeptFilter(){
+  const sel=document.getElementById('admin-dept-filter');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">全部門</option>'+DEPTS.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');
+}
+
+function renderAdminAll(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const dp=document.getElementById('admin-dept-filter').value;
+  const et=document.getElementById('admin-etype-filter').value;
+  const allocs=cachedAllocs.filter(a=>a.month==mo);
+  const empMap={};
+  cachedEmployees.forEach(e=>empMap[e.id]=e);
+  const rows=allocs.filter(a=>{
+    const e=empMap[a.empId]||{};
+    return (!dp||e.dept===dp)&&(!et||e.etype===et);
+  });
+  const tb=document.getElementById('admin-all-tbody');
+  if(!rows.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:#aaa;padding:24px">データがありません</td></tr>';return;}
+  // 社員でグループ化
+  const grouped={};
+  rows.forEach(a=>{if(!grouped[a.empId])grouped[a.empId]=[];grouped[a.empId].push(a);});
+  tb.innerHTML=Object.entries(grouped).map(([empId,allocs])=>{
+    const e=empMap[empId]||{};
+    const tags=allocs.map(a=>`<span class="alloc-tag">${a.target} ${a.ratio}%</span>`).join('');
+    const totAmt=allocs.reduce((s,a)=>s+(a.amount||0),0);
+    return `<tr><td>${empId}</td><td style="font-weight:500">${e.name||''}</td><td><span class="etype ${ETYPE_CLASS[e.etype]||'et-full'}">${e.etype||''}</span></td><td>${e.dept||''}</td><td>${fmt(e.salary||0)}</td><td><div class="alloc-cell">${tags}</div></td><td style="font-weight:500">${fmt(totAmt)}</td><td>${mo}月</td></tr>`;
+  }).join('');
+}
+
+function renderProjectDeptMasterUI(){
+  const el=document.getElementById('project-dept-master');
+  if(!el) return;
+  el.innerHTML=ALLOC_TARGETS.map(x=>{
+    const val=cachedProjDept[x.name]||'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #f0efe8">
+      <span style="font-size:12px;flex:1;color:#444">${x.name}<span style="font-size:10px;color:#aaa;margin-left:4px">[${x.cat}]</span></span>
+      <select id="pdm-${x.name.replace(/[^a-zA-Z0-9]/g,'_')}" style="padding:4px 7px;border:1px solid #d0cfc8;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;font-size:11px">
+        <option value="">未設定</option>
+        ${DEPTS.map(d=>`<option${d===val?' selected':''}>${d}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+async function saveProjectDeptMaster(){
+  const master={};
+  ALLOC_TARGETS.forEach(x=>{
+    const sel=document.getElementById('pdm-'+x.name.replace(/[^a-zA-Z0-9]/g,'_'));
+    if(sel) master[x.name]=sel.value;
+  });
+  showLoading('保存中...');
+  try{
+    await call('saveProjectDeptMaster',{master});
+    cachedProjDept=master;
+    const st=document.getElementById('project-dept-status');
+    st.textContent='✓ 保存しました'; setTimeout(()=>st.textContent='',2500);
+  }finally{hideLoading();}
+}
+
+function renderPwSettings(){
+  document.getElementById('pw-grid').innerHTML=DEPTS.map((dept,i)=>`
+    <div class="pw-card">
+      <div class="pw-card-title"><span class="ldot" style="background:${DEPT_COLORS[i%DEPT_COLORS.length]};border-radius:50%;width:9px;height:9px"></span>${dept}</div>
+      <div class="pw-input-row">
+        <input type="password" id="pw-${dept}" placeholder="新しいパスワード">
+        <button class="btn btn-sm" onclick="saveDeptPw('${dept}')">変更</button>
+      </div>
+      <div style="font-size:10px;color:#1e6e3e;margin-top:5px;min-height:14px" id="pw-status-${dept}"></div>
+    </div>`).join('');
+}
+
+async function saveDeptPw(dept){
+  const val=document.getElementById('pw-'+dept).value;
+  if(!val){alert('パスワードを入力してください');return;}
+  showLoading('保存中...');
+  try{
+    await call('changePassword',{dept,newPw:val});
+    document.getElementById('pw-'+dept).value='';
+    const st=document.getElementById('pw-status-'+dept);
+    st.textContent='✓ 変更しました'; setTimeout(()=>st.textContent='',2000);
+  }finally{hideLoading();}
+}
+
+async function changeAdminPw(){
+  const newPw=document.getElementById('admin-pw-new').value;
+  if(!newPw){alert('新しいパスワードを入力してください');return;}
+  showLoading('変更中...');
+  try{
+    await call('changePassword',{dept:'管理者',newPw});
+    document.getElementById('admin-pw-new').value='';
+    const st=document.getElementById('admin-pw-status');
+    st.style.color='#1e6e3e'; st.textContent='✓ 変更しました'; setTimeout(()=>st.textContent='',3000);
+  }finally{hideLoading();}
+}
+
+function exportCSV(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const allocs=cachedAllocs.filter(a=>a.month==mo);
+  const empMap={};cachedEmployees.forEach(e=>empMap[e.id]=e);
+  const bom='\uFEFF';
+  const hdr='社員番号,氏名,雇用区分,所属部門,基本給,配賦先,比率,配賦金額,月\n';
+  const rows=allocs.map(a=>{
+    const e=empMap[a.empId]||{};
+    return [a.empId,e.name||'',e.etype||'',e.dept||'',e.salary||0,a.target,a.ratio,a.amount||0,a.month].join(',');
+  }).join('\n');
+  dl(bom+hdr+rows,'全社人件費配賦_'+mo+'月_'+today()+'.csv');
+}
+
+function exportProjectCSV(){
+  const mo=parseInt(document.getElementById('admin-monthSel').value);
+  const allocs=cachedAllocs.filter(a=>a.month==mo);
+  const pM={};
+  allocs.forEach(a=>{pM[a.target]=(pM[a.target]||0)+(a.amount||0);});
+  const pSorted=ALLOC_TARGETS.map(x=>x.name).filter(n=>pM[n]);
+  const total=Object.values(pM).reduce((s,v)=>s+v,0);
+  const bom='\uFEFF';
+  const hdr='大項目,プロジェクト,配賦金額,構成比\n';
+  const rows=pSorted.map(n=>{
+    const item=ALLOC_TARGETS.find(x=>x.name===n);
+    const pct=total>0?Math.round(pM[n]/total*1000)/10:0;
+    return `${item?item.cat:''},${n},${pM[n]},${pct}%`;
+  }).join('\n');
+  dl(bom+hdr+rows+`\n合計,,${total},100%`,'プロジェクト別配賦_'+mo+'月_'+today()+'.csv');
+}
+
+function dl(content,filename){
+  const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+function today(){return new Date().toISOString().slice(0,10);}
+
+// 初期化
+(function init(){
+  const sel=document.getElementById('login-dept-sel');
+  sel.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join('');
+  document.getElementById('login-dept-pw').addEventListener('keydown',e=>{if(e.key==='Enter')deptLogin();});
+  document.getElementById('login-admin-pw').addEventListener('keydown',e=>{if(e.key==='Enter')adminLogin();});
+  document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+})();
+</script>
+</body>
+</html>
